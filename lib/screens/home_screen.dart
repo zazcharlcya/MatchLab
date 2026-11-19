@@ -5,8 +5,11 @@ import '../models/football_match.dart';
 import '../models/loading_status.dart';
 import '../theme/app_theme.dart';
 import '../viewmodels/home_viewmodel.dart';
+import '../viewmodels/profile_viewmodel.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/match_card.dart';
+import '../widgets/matchlab_brand.dart';
+import '../widgets/mb_coin_chip.dart';
 import 'match_details_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -24,7 +27,15 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     if (widget.loadOnStart) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        context.read<HomeViewModel>().load();
+        () async {
+          await context.read<HomeViewModel>().load();
+          if (!mounted) {
+            return;
+          }
+          try {
+            await context.read<ProfileViewModel>().refreshStats();
+          } catch (_) {}
+        }();
       });
     }
   }
@@ -34,16 +45,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final vm = context.watch<HomeViewModel>();
     return Scaffold(
       appBar: AppBar(
-        title: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('MatchLab'),
-            Text(
-              'Футбольная аналитика',
-              style: TextStyle(fontSize: 12, color: AppColors.muted, fontWeight: FontWeight.w400),
-            ),
-          ],
-        ),
+        titleSpacing: 12,
+        title: const MatchLabBrand(),
+        actions: const [MbCoinChip()],
       ),
       body: Column(
         children: [
@@ -71,7 +75,10 @@ class _HomeScreenState extends State<HomeScreen> {
           if (vm.status == LoadingStatus.error && vm.errorMessage != null)
             Padding(
               padding: const EdgeInsets.all(16),
-              child: Text(vm.errorMessage!, style: const TextStyle(color: AppColors.danger)),
+              child: Text(
+                vm.errorMessage!,
+                style: TextStyle(color: AppColors.of(context).danger),
+              ),
             ),
           Expanded(child: _body(context, vm)),
         ],
@@ -84,7 +91,7 @@ class _HomeScreenState extends State<HomeScreen> {
       label: Text(label),
       selected: vm.filter == value,
       onSelected: (_) => vm.setFilter(value),
-      selectedColor: AppColors.accentDim,
+      selectedColor: AppColors.of(context).accentDim,
     );
   }
 
@@ -109,7 +116,14 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
     return RefreshIndicator(
-      onRefresh: vm.load,
+      onRefresh: () async {
+        await vm.load();
+        if (context.mounted) {
+          try {
+            await context.read<ProfileViewModel>().refreshStats();
+          } catch (_) {}
+        }
+      },
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: items.length,
@@ -119,6 +133,7 @@ class _HomeScreenState extends State<HomeScreen> {
             padding: const EdgeInsets.only(bottom: 12),
             child: MatchCard(
               match: match,
+              userPrediction: vm.predictionFor(match),
               onTap: () => _openDetails(context, match),
             ),
           );
@@ -134,7 +149,10 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
     if (context.mounted) {
-      await context.read<HomeViewModel>().load();
+      await context.read<HomeViewModel>().refreshPredictions();
+      try {
+        await context.read<ProfileViewModel>().refreshStats();
+      } catch (_) {}
     }
   }
 }

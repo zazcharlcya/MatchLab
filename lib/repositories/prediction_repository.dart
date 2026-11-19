@@ -91,7 +91,10 @@ class SqlitePredictionRepository implements PredictionRepository {
 
   @override
   Future<void> updateOutcome(UserPrediction prediction, MatchOutcome outcome) async {
-    if (!prediction.canEdit) {
+    if (!prediction.isActive) {
+      throw StateError('Прогноз больше нельзя изменить.');
+    }
+    if (prediction.match != null && !prediction.match!.canPredict) {
       throw StateError('Прогноз больше нельзя изменить.');
     }
     final db = await _database.database;

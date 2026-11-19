@@ -43,12 +43,24 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+.gradle-home/
 
 # Release signing — never commit the key
 android/key.properties
 android/keystore/
 *.jks
 *.keystore
+
+# Store binaries / local helpers / machine-specific
+store/app-release.apk
+store/screenshots/
+store/_publish_privacy.py
+store/rustore_card.txt
+store/shot_*.png
+start-emulator.bat
+stop-emulator.bat
+android/local.properties
+.cursor/
 
 # Widget Preview related
 .widget_preview/

@@ -14,6 +14,7 @@ import 'theme/app_theme.dart';
 import 'viewmodels/home_viewmodel.dart';
 import 'viewmodels/predictions_viewmodel.dart';
 import 'viewmodels/profile_viewmodel.dart';
+import 'viewmodels/theme_controller.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,7 +38,13 @@ Future<void> main() async {
     camera: camera,
     logger: logger,
   );
-  await userRepository.ensureDefaultUser();
+  final themeController = ThemeController(userRepository: userRepository);
+  try {
+    await userRepository.ensureDefaultUser();
+    await themeController.load();
+  } catch (error, stack) {
+    logger.error('Startup: не удалось открыть локальную базу', error, stack);
+  }
 
   runApp(
     MatchLabApp(
@@ -46,6 +53,7 @@ Future<void> main() async {
       matchRepository: matchRepository,
       predictionRepository: predictionRepository,
       userRepository: userRepository,
+      themeController: themeController,
     ),
   );
 }
@@ -58,6 +66,7 @@ class MatchLabApp extends StatelessWidget {
     required this.matchRepository,
     required this.predictionRepository,
     required this.userRepository,
+    required this.themeController,
   });
 
   final AppLog logger;
@@ -65,6 +74,7 @@ class MatchLabApp extends StatelessWidget {
   final MatchRepository matchRepository;
   final PredictionRepository predictionRepository;
   final UserRepository userRepository;
+  final ThemeController themeController;
 
   @override
   Widget build(BuildContext context) {
@@ -94,12 +104,19 @@ class MatchLabApp extends StatelessWidget {
             logger: logger,
           ),
         ),
+        ChangeNotifierProvider<ThemeController>.value(value: themeController),
       ],
-      child: MaterialApp(
-        title: 'MatchLab',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.dark(),
-        home: const ShellScreen(),
+      child: Consumer<ThemeController>(
+        builder: (context, theme, _) {
+          return MaterialApp(
+            title: 'MatchLab',
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.light(),
+            darkTheme: AppTheme.dark(),
+            themeMode: theme.mode,
+            home: const ShellScreen(),
+          );
+        },
       ),
     );
   }

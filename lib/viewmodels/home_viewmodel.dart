@@ -2,8 +2,10 @@ import 'package:flutter/foundation.dart';
 
 import '../models/football_match.dart';
 import '../models/loading_status.dart';
+import '../models/user_prediction.dart';
 import '../repositories/match_repository.dart';
 import '../repositories/prediction_repository.dart';
+import '../services/api_service.dart';
 import '../services/app_logger.dart';
 
 enum MatchListFilter { all, upcoming, finished }
@@ -24,8 +26,11 @@ class HomeViewModel extends ChangeNotifier {
   LoadingStatus status = LoadingStatus.initial;
   String? errorMessage;
   List<FootballMatch> matches = const [];
+  Map<String, UserPrediction> predictionsByMatch = const {};
   String query = '';
-  MatchListFilter filter = MatchListFilter.all;
+  MatchListFilter filter = MatchListFilter.upcoming;
+
+  UserPrediction? predictionFor(FootballMatch match) => predictionsByMatch[match.id];
 
   List<FootballMatch> get visible {
     final needle = query.trim().toLowerCase();
@@ -64,12 +69,27 @@ class HomeViewModel extends ChangeNotifier {
     try {
       matches = await _matchRepository.loadMatches();
       await _predictionRepository.settleFinished(matches);
+      await _loadPredictions();
       status = LoadingStatus.success;
     } catch (error, stack) {
       _logger.error('Home: ошибка загрузки', error, stack);
-      errorMessage = error.toString().replaceFirst('Exception: ', '');
+      errorMessage = error is NetworkException
+          ? error.message
+          : 'Не удалось загрузить матчи. Потяните вниз, чтобы повторить.';
       status = LoadingStatus.error;
     }
     notifyListeners();
+  }
+
+  Future<void> refreshPredictions() async {
+    await _loadPredictions();
+    notifyListeners();
+  }
+
+  Future<void> _loadPredictions() async {
+    final items = await _predictionRepository.getAll();
+    predictionsByMatch = {
+      for (final item in items) item.matchId: item,
+    };
   }
 }

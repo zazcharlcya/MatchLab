@@ -16,6 +16,7 @@ class ProbabilityBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return Column(
       children: [
         ClipRRect(
@@ -24,12 +25,9 @@ class ProbabilityBar extends StatelessWidget {
             height: 8,
             child: Row(
               children: [
-                Expanded(flex: _flex(home), child: Container(color: AppColors.accent)),
-                Expanded(flex: _flex(draw), child: Container(color: AppColors.muted)),
-                Expanded(
-                  flex: _flex(away),
-                  child: Container(color: const Color(0xFF4C8DFF)),
-                ),
+                Expanded(flex: _flex(home), child: ColoredBox(color: colors.accent)),
+                Expanded(flex: _flex(draw), child: ColoredBox(color: colors.muted)),
+                Expanded(flex: _flex(away), child: ColoredBox(color: colors.away)),
               ],
             ),
           ),
@@ -38,9 +36,9 @@ class ProbabilityBar extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            _label('П1', home, AppColors.accent),
-            _label('X', draw, AppColors.muted),
-            _label('П2', away, const Color(0xFF4C8DFF)),
+            _label('П1', home, colors.accent),
+            _label('X', draw, colors.muted),
+            _label('П2', away, colors.away),
           ],
         ),
       ],

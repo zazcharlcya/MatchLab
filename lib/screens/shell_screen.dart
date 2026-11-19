@@ -32,6 +32,7 @@ class _ShellScreenState extends State<ShellScreen> {
         currentIndex: _index,
         onTap: (value) {
           setState(() => _index = value);
+          context.read<ProfileViewModel>().refreshStats();
           if (value == 1) {
             context.read<PredictionsViewModel>().load();
           }

@@ -4,12 +4,14 @@ class UserProfile {
     required this.name,
     required this.points,
     this.avatarPath,
+    this.darkTheme = true,
   });
 
   final int id;
   final String name;
   final int points;
   final String? avatarPath;
+  final bool darkTheme;
 
   UserProfile copyWith({
     String? name,
@@ -22,6 +24,7 @@ class UserProfile {
       name: name ?? this.name,
       points: points ?? this.points,
       avatarPath: clearAvatar ? null : (avatarPath ?? this.avatarPath),
+      darkTheme: darkTheme,
     );
   }
 
@@ -31,6 +34,7 @@ class UserProfile {
       name: map['name']! as String,
       points: (map['points'] as int?) ?? 0,
       avatarPath: map['avatar_path'] as String?,
+      darkTheme: ((map['dark_theme'] as int?) ?? 1) == 1,
     );
   }
 }

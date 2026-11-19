@@ -5,15 +5,16 @@ import '../models/model_forecast.dart';
 import 'elo_calculator.dart';
 import 'poisson_model.dart';
 
-/// MatchLab Prediction Engine: Elo задаёт силу команд,
-/// Пуассон — вероятности голов и исходов 1X2.
+/// MatchLab Prediction Engine.
+///
+/// 1. Elo с домашним полем и весом разницы голов → сила команд
+/// 2. Атака/оборона относительно лиги, свежие матчи весят больше
+/// 3. Сила ужимается к среднему лиги, λ ограничен —
+///    чтобы фаворит не получал 95% из разгромных счетов
+/// 4. Пуассон + Dixon–Coles → 1X2
 ///
 /// λ_home = att_home * def_away * μ_home * home_boost * elo_shift
-/// λ_away = att_away * def_home * μ_away / elo_shift
-///
-/// att = среднее забитых команды / среднее забитых лиги
-/// def = среднее пропущенных команды / среднее пропущенных лиги
-/// elo_shift = exp(0.35 * tanh((R_home + H - R_away) / 200))
+/// elo_shift = exp(0.22 * tanh((R_home + H - R_away) / 200))
 class PredictionEngine {
   PredictionEngine({
     EloCalculator? eloCalculator,
@@ -26,7 +27,10 @@ class PredictionEngine {
 
   static const double defaultHomeMu = 1.45;
   static const double defaultAwayMu = 1.15;
-  static const double homeLambdaBoost = 1.08;
+  static const double homeLambdaBoost = 1.04;
+  static const double recencyHalfLifeDays = 45;
+  static const double strengthShrink = 0.4;
+  static const double eloShiftScale = 0.22;
 
   ModelForecast forecast({
     required String homeTeam,
@@ -43,15 +47,15 @@ class PredictionEngine {
     final awayStats = _teamStats(awayTeam, finished, league);
 
     final eloDiff = (homeElo + eloCalculator.homeAdvantage) - awayElo;
-    final eloShift = math.exp(0.35 * _tanh(eloDiff / 200));
+    final eloShift = math.exp(eloShiftScale * _tanh(eloDiff / 200));
 
     var lambdaHome =
         homeStats.attack * awayStats.defense * league.homeMu * homeLambdaBoost * eloShift;
     var lambdaAway =
         awayStats.attack * homeStats.defense * league.awayMu / eloShift;
 
-    lambdaHome = lambdaHome.clamp(0.25, 4.5);
-    lambdaAway = lambdaAway.clamp(0.25, 4.5);
+    lambdaHome = lambdaHome.clamp(0.8, 2.35);
+    lambdaAway = lambdaAway.clamp(0.8, 2.35);
 
     final outcomes = poissonModel.outcomes(lambdaHome, lambdaAway);
     return ModelForecast(
@@ -70,15 +74,22 @@ class PredictionEngine {
     if (finished.isEmpty) {
       return const _LeagueAverages(homeMu: defaultHomeMu, awayMu: defaultAwayMu);
     }
-    var homeGoals = 0;
-    var awayGoals = 0;
+    var homeGoals = 0.0;
+    var awayGoals = 0.0;
+    var weight = 0.0;
+    final latest = _latestKickoff(finished);
     for (final match in finished) {
-      homeGoals += match.homeScore!;
-      awayGoals += match.awayScore!;
+      final w = _recencyWeight(match, latest);
+      homeGoals += match.homeScore! * w;
+      awayGoals += match.awayScore! * w;
+      weight += w;
+    }
+    if (weight == 0) {
+      return const _LeagueAverages(homeMu: defaultHomeMu, awayMu: defaultAwayMu);
     }
     return _LeagueAverages(
-      homeMu: homeGoals / finished.length,
-      awayMu: awayGoals / finished.length,
+      homeMu: homeGoals / weight,
+      awayMu: awayGoals / weight,
     );
   }
 
@@ -87,30 +98,52 @@ class PredictionEngine {
     List<FootballMatch> finished,
     _LeagueAverages league,
   ) {
-    var scored = 0;
-    var conceded = 0;
-    var games = 0;
+    var scored = 0.0;
+    var conceded = 0.0;
+    var games = 0.0;
+    final latest = _latestKickoff(finished);
     for (final match in finished) {
+      final w = _recencyWeight(match, latest);
       if (match.homeTeam == team) {
-        scored += match.homeScore!;
-        conceded += match.awayScore!;
-        games += 1;
+        scored += match.homeScore! * w;
+        conceded += match.awayScore! * w;
+        games += w;
       } else if (match.awayTeam == team) {
-        scored += match.awayScore!;
-        conceded += match.homeScore!;
-        games += 1;
+        scored += match.awayScore! * w;
+        conceded += match.homeScore! * w;
+        games += w;
       }
     }
     if (games == 0) {
       return const _TeamStrength(attack: 1, defense: 1);
     }
     final leagueMu = (league.homeMu + league.awayMu) / 2;
-    final attack = (scored / games) / (leagueMu == 0 ? 1 : leagueMu);
-    final defense = (conceded / games) / (leagueMu == 0 ? 1 : leagueMu);
+    final rawAttack = (scored / games) / (leagueMu == 0 ? 1 : leagueMu);
+    final rawDefense = (conceded / games) / (leagueMu == 0 ? 1 : leagueMu);
     return _TeamStrength(
-      attack: attack.clamp(0.4, 2.2),
-      defense: defense.clamp(0.4, 2.2),
+      attack: _shrink(rawAttack.clamp(0.55, 1.75)),
+      defense: _shrink(rawDefense.clamp(0.55, 1.75)),
     );
+  }
+
+  /// Тянет атаку/оборону к 1, чтобы разгромы не давали λ = 4 против 0.4.
+  double _shrink(double value) => 1 + (value - 1) * strengthShrink;
+
+  DateTime? _latestKickoff(List<FootballMatch> finished) {
+    if (finished.isEmpty) {
+      return null;
+    }
+    return finished
+        .map((match) => match.kickoff)
+        .reduce((a, b) => a.isAfter(b) ? a : b);
+  }
+
+  double _recencyWeight(FootballMatch match, DateTime? latest) {
+    if (latest == null) {
+      return 1;
+    }
+    final days = latest.difference(match.kickoff).inDays.clamp(0, 400);
+    return math.exp(-math.ln2 * days / recencyHalfLifeDays);
   }
 
   double _tanh(double x) {

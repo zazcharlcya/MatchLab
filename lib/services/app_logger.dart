@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:logger/logger.dart';
 
 abstract class AppLog {
@@ -16,6 +17,8 @@ class AppLogger implements AppLog {
                 lineLength: 80,
                 colors: false,
               ),
+              output: ConsoleOutput(),
+              level: kReleaseMode ? Level.warning : Level.debug,
             );
 
   final Logger _logger;

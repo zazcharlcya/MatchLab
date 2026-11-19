@@ -47,7 +47,8 @@ class MatchViewModel extends ChangeNotifier {
             awayTeam: match.awayTeam,
             history: recent,
           );
-      existing = await _predictionRepository.byMatchId(match.id);
+      existing = (await _predictionRepository.byMatchId(match.id))
+          ?.copyWith(match: match);
       selected = existing?.chosenOutcome;
       status = LoadingStatus.success;
       _logger.debug('Match: модель готова ${match.id}');

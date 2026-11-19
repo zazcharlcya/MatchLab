@@ -29,17 +29,26 @@ class OutcomeProbabilities {
   }
 }
 
-/// Распределение Пуассона для голов.
+/// Распределение Пуассона для голов + поправка Dixon–Coles на низкие счета.
 ///
-/// P(k | λ) = e^{-λ} * λ^k / k!
+/// Независимый Пуассон:
+///   P(k | λ) = e^{-λ} * λ^k / k!
+///   P(i, j)  = P(i | λ_home) * P(j | λ_away)
 ///
-/// Матч моделируется как два независимых Пуассона:
-///   λ_home — ожидаемые голы хозяев,
-///   λ_away — ожидаемые голы гостей.
+/// Независимая модель систематически занижает ничьи. Dixon–Coles (1997)
+/// домножает клетки 0:0, 1:0, 0:1, 1:1 на τ:
+///   τ(0,0) = 1 − λμρ
+///   τ(0,1) = 1 + λρ
+///   τ(1,0) = 1 + μρ
+///   τ(1,1) = 1 − ρ
+///   иначе  1
+///
+/// ρ < 0 (обычно около −0.10) поднимает 0:0 и 1:1.
 class PoissonModel {
-  const PoissonModel({this.maxGoals = 8});
+  const PoissonModel({this.maxGoals = 8, this.rho = -0.10});
 
   final int maxGoals;
+  final double rho;
 
   double pmf(int k, double lambda) {
     if (k < 0) {
@@ -51,13 +60,42 @@ class PoissonModel {
     return math.exp(-lambda) * math.pow(lambda, k) / _factorial(k);
   }
 
+  double tau(int homeGoals, int awayGoals, double lambdaHome, double lambdaAway) {
+    if (rho == 0) {
+      return 1;
+    }
+    if (homeGoals == 0 && awayGoals == 0) {
+      return math.max(0.05, 1 - lambdaHome * lambdaAway * rho);
+    }
+    if (homeGoals == 0 && awayGoals == 1) {
+      return math.max(0.05, 1 + lambdaHome * rho);
+    }
+    if (homeGoals == 1 && awayGoals == 0) {
+      return math.max(0.05, 1 + lambdaAway * rho);
+    }
+    if (homeGoals == 1 && awayGoals == 1) {
+      return math.max(0.05, 1 - rho);
+    }
+    return 1;
+  }
+
   List<List<double>> scoreMatrix(double lambdaHome, double lambdaAway) {
     final home = List<double>.generate(maxGoals + 1, (k) => pmf(k, lambdaHome));
     final away = List<double>.generate(maxGoals + 1, (k) => pmf(k, lambdaAway));
-    return List.generate(
-      maxGoals + 1,
-      (i) => List.generate(maxGoals + 1, (j) => home[i] * away[j]),
-    );
+    var total = 0.0;
+    final raw = List.generate(maxGoals + 1, (i) {
+      return List.generate(maxGoals + 1, (j) {
+        final p = home[i] * away[j] * tau(i, j, lambdaHome, lambdaAway);
+        total += p;
+        return p;
+      });
+    });
+    if (total <= 0) {
+      return raw;
+    }
+    return [
+      for (final row in raw) [for (final p in row) p / total],
+    ];
   }
 
   OutcomeProbabilities outcomes(double lambdaHome, double lambdaAway) {

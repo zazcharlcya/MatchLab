@@ -45,20 +45,38 @@ class SportsMatchRepository implements MatchRepository {
   @override
   Future<List<FootballMatch>> loadMatches() async {
     _logger.debug('Matches: загрузка из API');
-    final remote = await _api.fetchLeagueMatches();
-    final db = await _database.database;
-    final batch = db.batch();
-    for (final match in remote) {
-      batch.insert(
-        'matches',
-        match.toMap(),
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
+    try {
+      final remote = await _api.fetchLeagueMatches();
+      final db = await _database.database;
+      final batch = db.batch();
+      for (final match in remote) {
+        batch.insert(
+          'matches',
+          match.toMap(),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+      await batch.commit(noResult: true);
+    } catch (error, stack) {
+      final stored = await _readStored();
+      if (stored.isEmpty) {
+        _logger.error('Matches: API недоступен и локальных матчей нет', error, stack);
+        rethrow;
+      }
+      _logger.info('Matches: API недоступен, показаны сохранённые ${stored.length}');
+      return _decorate(stored);
     }
-    await batch.commit(noResult: true);
 
+    return _decorate(await _readStored());
+  }
+
+  Future<List<FootballMatch>> _readStored() async {
+    final db = await _database.database;
     final rows = await db.query('matches', orderBy: 'kickoff_utc DESC');
-    final stored = rows.map(FootballMatch.fromMap).toList();
+    return rows.map(FootballMatch.fromMap).toList();
+  }
+
+  List<FootballMatch> _decorate(List<FootballMatch> stored) {
     final finished = stored.where((match) => match.isFinished).toList();
     _logger.debug('Matches: расчёт модели для ${stored.length} матчей');
     _cached = stored

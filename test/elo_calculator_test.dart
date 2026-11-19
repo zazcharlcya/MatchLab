@@ -31,4 +31,33 @@ void main() {
     expect(ratings['Arsenal']!, greaterThan(1500));
     expect(ratings['Chelsea']!, lessThan(1500));
   });
+
+  test('крупный счёт двигает Elo сильнее минимальной победы', () {
+    final narrow = calculator.ratingsFromMatches([
+      sampleMatch(
+        id: 'n',
+        home: 'Arsenal',
+        away: 'Chelsea',
+        homeScore: 1,
+        awayScore: 0,
+        status: MatchStatus.finished,
+        kickoff: DateTime(2026, 1, 1),
+      ),
+    ]);
+    final blowout = calculator.ratingsFromMatches([
+      sampleMatch(
+        id: 'b',
+        home: 'Arsenal',
+        away: 'Chelsea',
+        homeScore: 4,
+        awayScore: 0,
+        status: MatchStatus.finished,
+        kickoff: DateTime(2026, 1, 1),
+      ),
+    ]);
+    expect(
+      blowout['Arsenal']! - 1500,
+      greaterThan(narrow['Arsenal']! - 1500),
+    );
+  });
 }

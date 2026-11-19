@@ -10,6 +10,8 @@ abstract class UserRepository {
   Future<UserProfile> getUser();
   Future<void> updateName(String name);
   Future<String?> updateAvatarFromCamera();
+  Future<bool> isDarkTheme();
+  Future<void> setDarkTheme(bool value);
   Future<ProfileStats> stats();
 }
 
@@ -37,6 +39,7 @@ class SqliteUserRepository implements UserRepository {
         'id': 1,
         'name': defaultName,
         'points': 0,
+        'dark_theme': 1,
       });
       _logger.info('User: создан локальный профиль');
     }
@@ -77,6 +80,24 @@ class SqliteUserRepository implements UserRepository {
     );
     _logger.info('User: аватар обновлён');
     return path;
+  }
+
+  @override
+  Future<bool> isDarkTheme() async {
+    final user = await getUser();
+    return user.darkTheme;
+  }
+
+  @override
+  Future<void> setDarkTheme(bool value) async {
+    final db = await _database.database;
+    await db.update(
+      'users',
+      {'dark_theme': value ? 1 : 0},
+      where: 'id = ?',
+      whereArgs: [1],
+    );
+    _logger.info('User: тема ${value ? 'тёмная' : 'светлая'}');
   }
 
   @override

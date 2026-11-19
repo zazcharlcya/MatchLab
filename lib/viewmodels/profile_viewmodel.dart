@@ -46,6 +46,16 @@ class ProfileViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> refreshStats() async {
+    try {
+      profile = await _userRepository.getUser();
+      stats = await _userRepository.stats();
+      notifyListeners();
+    } catch (error, stack) {
+      _logger.error('Profile: ошибка обновления баллов', error, stack);
+    }
+  }
+
   bool validateName(String value) {
     final trimmed = value.trim();
     if (trimmed.isEmpty) {

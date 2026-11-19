@@ -25,7 +25,7 @@ class DatabaseService {
     _logger.info('DB: открытие $path');
     return openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE matches (
@@ -60,9 +60,17 @@ class DatabaseService {
             id INTEGER PRIMARY KEY,
             name TEXT NOT NULL,
             avatar_path TEXT,
-            points INTEGER NOT NULL DEFAULT 0
+            points INTEGER NOT NULL DEFAULT 0,
+            dark_theme INTEGER NOT NULL DEFAULT 1
           )
         ''');
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute(
+            'ALTER TABLE users ADD COLUMN dark_theme INTEGER NOT NULL DEFAULT 1',
+          );
+        }
       },
     );
   }

@@ -9,8 +9,10 @@ import '../repositories/match_repository.dart';
 import '../repositories/prediction_repository.dart';
 import '../services/app_logger.dart';
 import '../theme/app_theme.dart';
+import '../theme/league_identity.dart';
 import '../viewmodels/match_viewmodel.dart';
 import '../widgets/probability_bar.dart';
+import '../widgets/team_badge.dart';
 
 class MatchDetailsScreen extends StatelessWidget {
   const MatchDetailsScreen({super.key, required this.match});
@@ -48,18 +50,15 @@ class _MatchDetailsView extends StatelessWidget {
         LoadingStatus.success => ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              Text(
-                '${vm.match.homeTeam} — ${vm.match.awayTeam}',
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
-              ),
+              _MatchHeader(match: vm.match),
               const SizedBox(height: 8),
               Text(
-                '${vm.match.league} · ${formatKickoff(vm.match.kickoff)}',
-                style: const TextStyle(color: AppColors.muted),
+                '${LeagueIdentity.of(vm.match.league).caption} · ${formatKickoff(vm.match.kickoff)}',
+                style: TextStyle(color: AppColors.of(context).muted),
               ),
               if (vm.match.venue != null) ...[
                 const SizedBox(height: 4),
-                Text(vm.match.venue!, style: const TextStyle(color: AppColors.muted)),
+                Text(vm.match.venue!, style: TextStyle(color: AppColors.of(context).muted)),
               ],
               const SizedBox(height: 16),
               _section(
@@ -87,7 +86,7 @@ class _MatchDetailsView extends StatelessWidget {
                         for (final score in vm.forecast.topScores)
                           Chip(
                             label: Text('${score.label} ${percent(score.probability)}'),
-                            backgroundColor: AppColors.accentDim,
+                            backgroundColor: AppColors.of(context).accentDim,
                           ),
                       ],
                     ),
@@ -97,9 +96,9 @@ class _MatchDetailsView extends StatelessWidget {
               _section(
                 'Последние результаты',
                 vm.recent.isEmpty
-                    ? const Text(
+                    ? Text(
                         'Истории по этим командам в выборке пока нет. Модель использует средние лиги.',
-                        style: TextStyle(color: AppColors.muted),
+                        style: TextStyle(color: AppColors.of(context).muted),
                       )
                     : Column(
                         children: [
@@ -107,6 +106,11 @@ class _MatchDetailsView extends StatelessWidget {
                             ListTile(
                               dense: true,
                               contentPadding: EdgeInsets.zero,
+                              leading: TeamBadge(
+                                name: item.homeTeam,
+                                url: item.homeBadge,
+                                size: 28,
+                              ),
                               title: Text('${item.homeTeam} ${item.scoreLabel} ${item.awayTeam}'),
                               subtitle: Text(item.league),
                             ),
@@ -138,6 +142,46 @@ class _MatchDetailsView extends StatelessWidget {
   }
 }
 
+class _MatchHeader extends StatelessWidget {
+  const _MatchHeader({required this.match});
+
+  final FootballMatch match;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(child: _side(match.homeTeam, match.homeBadge)),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Text(
+            '—',
+            style: TextStyle(color: AppColors.of(context).muted, fontSize: 18, fontWeight: FontWeight.w700),
+          ),
+        ),
+        Expanded(child: _side(match.awayTeam, match.awayBadge, alignEnd: true)),
+      ],
+    );
+  }
+
+  Widget _side(String name, String? badge, {bool alignEnd = false}) {
+    final badgeWidget = TeamBadge(name: name, url: badge, size: 48);
+    final text = Text(
+      name,
+      textAlign: alignEnd ? TextAlign.end : TextAlign.start,
+      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+    );
+    return Column(
+      crossAxisAlignment: alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      children: [
+        badgeWidget,
+        const SizedBox(height: 8),
+        text,
+      ],
+    );
+  }
+}
+
 class _PredictionForm extends StatelessWidget {
   const _PredictionForm({required this.vm});
 
@@ -156,13 +200,13 @@ class _PredictionForm extends StatelessWidget {
                 label: Text(outcome.fullLabel),
                 selected: vm.selected == outcome,
                 onSelected: vm.match.canPredict ? (_) => vm.select(outcome) : null,
-                selectedColor: AppColors.accentDim,
+                selectedColor: AppColors.of(context).accentDim,
               ),
           ],
         ),
         if (vm.formError != null) ...[
           const SizedBox(height: 8),
-          Text(vm.formError!, style: const TextStyle(color: AppColors.danger)),
+          Text(vm.formError!, style: TextStyle(color: AppColors.of(context).danger)),
         ],
         const SizedBox(height: 12),
         FilledButton(

@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/loading_status.dart';
+import '../models/user_prediction.dart';
 import '../theme/app_theme.dart';
 import '../viewmodels/predictions_viewmodel.dart';
+import '../viewmodels/profile_viewmodel.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/mb_coin_chip.dart';
 import '../widgets/prediction_card.dart';
+import 'match_details_screen.dart';
 
 class PredictionsScreen extends StatefulWidget {
   const PredictionsScreen({super.key});
@@ -27,7 +31,10 @@ class _PredictionsScreenState extends State<PredictionsScreen> {
   Widget build(BuildContext context) {
     final vm = context.watch<PredictionsViewModel>();
     return Scaffold(
-      appBar: AppBar(title: const Text('Мои прогнозы')),
+      appBar: AppBar(
+        title: const Text('Мои прогнозы'),
+        actions: const [MbCoinChip()],
+      ),
       body: Column(
         children: [
           Padding(
@@ -53,7 +60,7 @@ class _PredictionsScreenState extends State<PredictionsScreen> {
       label: Text(label),
       selected: vm.filter == value,
       onSelected: (_) => vm.setFilter(value),
-      selectedColor: AppColors.accentDim,
+      selectedColor: AppColors.of(context).accentDim,
     );
   }
 
@@ -80,10 +87,29 @@ class _PredictionsScreenState extends State<PredictionsScreen> {
           padding: const EdgeInsets.only(bottom: 12),
           child: PredictionCard(
             prediction: item,
+            onOpen: item.match == null ? null : () => _openMatch(item),
             onDelete: item.canEdit ? () => vm.delete(item) : null,
           ),
         );
       },
     );
+  }
+
+  Future<void> _openMatch(UserPrediction item) async {
+    final match = item.match;
+    if (match == null) {
+      return;
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => MatchDetailsScreen(match: match),
+      ),
+    );
+    if (mounted) {
+      await context.read<PredictionsViewModel>().load();
+      try {
+        await context.read<ProfileViewModel>().refreshStats();
+      } catch (_) {}
+    }
   }
 }
